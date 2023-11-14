@@ -84,6 +84,10 @@ impl CPU {
                 .expect(&format!("OpCode 0x{:x} is not recognized", code));
 
             match code {
+                0x29 | 0x25 | 0x35 | 0x2d | 0x3d | 0x39 | 0x21 | 0x31 => {
+                    self.and(&opcode.mode);
+                }
+
                 0xa9 | 0xa5 | 0xb5 | 0xad | 0xbd | 0xb9 | 0xa1 | 0xb1 => {
                     self.lda(&opcode.mode);
                 }
@@ -201,6 +205,14 @@ impl CPU {
         let hi = self.stack_pop() as u16;
 
         hi << 8 | lo
+    }
+
+    fn and(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode);
+        let value = self.mem_read(addr);
+
+        self.register_a &= value;
+        self.update_zero_and_negative_flags(self.register_a);
     }
 
     fn inx(&mut self) {
@@ -332,5 +344,23 @@ mod test {
         cpu.load_and_run(vec![0xa9, 0xff, 0xaa, 0xe8, 0xe8, 0x00]);
 
         assert_eq!(cpu.register_x, 1)
+    }
+
+    #[test]
+    fn test_and_positive() {
+        let mut cpu = CPU::new();
+        cpu.load_and_run(vec![0xa9, 0xf0, 0x29, 0x77, 0x00]);
+        assert_eq!(cpu.register_a, 0x70);
+        assert!(cpu.status & 0b0000_0010 == 0b00);
+        assert!(cpu.status & 0b1000_0000 == 0);
+    }
+
+    #[test]
+    fn test_and_zero() {
+        let mut cpu = CPU::new();
+        cpu.load_and_run(vec![0xa9, 0xf0, 0x29, 0x0f, 0x00]);
+        assert_eq!(cpu.register_a, 0x0);
+        assert!(cpu.status & 0b0000_0010 == 0b10);
+        assert!(cpu.status & 0b1000_0000 == 0);
     }
 }
