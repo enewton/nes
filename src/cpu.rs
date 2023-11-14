@@ -96,6 +96,7 @@ impl CPU {
                     self.sta(&opcode.mode);
                 }
 
+                0x18 => self.clc(),
                 0x20 => self.jsr(),
                 0x60 => self.rts(),
                 0xAA => self.tax(),
@@ -213,6 +214,10 @@ impl CPU {
 
         self.register_a &= value;
         self.update_zero_and_negative_flags(self.register_a);
+    }
+
+    fn clc(&mut self) {
+        self.status &= 0b1111_1110;
     }
 
     fn inx(&mut self) {
