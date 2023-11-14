@@ -93,6 +93,7 @@ impl CPU {
                 }
 
                 0x20 => self.jsr(),
+                0x60 => self.rts(),
                 0xAA => self.tax(),
                 0xE8 => self.inx(),
                 0x00 => return,
@@ -211,6 +212,10 @@ impl CPU {
     fn jsr(&mut self) {
         self.stack_push_u16(self.program_counter + 2 - 1);
         self.program_counter = self.mem_read_u16(self.program_counter);
+    }
+
+    fn rts(&mut self) {
+        self.program_counter = self.stack_pop_u16() + 1;
     }
 
     fn sta(&mut self, mode: &AddressingMode) {
