@@ -32,11 +32,22 @@ impl CPU {
 
                 0xAA => self.tax(),
 
+                0xE8 => self.inx(),
+
                 0x00 => return,
 
                 _ => todo!(),
             }
         }
+    }
+
+    fn inx(&mut self) {
+        if self.register_x < 0xFF {
+            self.register_x += 1;
+        } else {
+            self.register_x = 0;
+        }
+        self.update_zero_and_negative_flags(self.register_x);
     }
 
     fn lda(&mut self, value: u8) {
@@ -122,5 +133,22 @@ mod test {
         //println!("AAA {:x}", cpu.status);
         assert!(cpu.status & 0b0000_0010 == 0b00);
         assert!(cpu.status & 0b1000_0000 == 0b1000_0000);
+    }
+
+    #[test]
+    fn test_5_ops_working_together() {
+        let mut cpu = CPU::new();
+        cpu.interpret(vec![0xa9, 0xc0, 0xaa, 0xe8, 0x00]);
+
+        assert_eq!(cpu.register_x, 0xc1)
+    }
+
+    #[test]
+    fn test_inx_overflow() {
+        let mut cpu = CPU::new();
+        cpu.register_x = 0xff;
+        cpu.interpret(vec![0xe8, 0xe8, 0x00]);
+
+        assert_eq!(cpu.register_x, 1)
     }
 }
