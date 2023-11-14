@@ -2,9 +2,9 @@ pub struct CPU {
     pub register_a: u8,
     pub status: u8,
     pub program_counter: u16,
- }
+}
 
- impl CPU {
+impl CPU {
     pub fn new() -> Self {
         CPU {
             register_a: 0,
@@ -23,7 +23,7 @@ pub struct CPU {
             match opscode {
                 0xA9 => {
                     let param = program[self.program_counter as usize];
-                    self.program_counter +=1;
+                    self.program_counter += 1;
                     self.register_a = param;
 
                     if self.register_a == 0 {
@@ -37,20 +37,18 @@ pub struct CPU {
                     } else {
                         self.status &= 0b0111_1111;
                     }
-
                 }
                 0x00 => {
                     return;
                 }
-                _ => todo!()
+                _ => todo!(),
             }
         }
     }
 }
 
-
- #[cfg(test)]
- mod test {
+#[cfg(test)]
+mod test {
     use super::*;
 
     #[test]
