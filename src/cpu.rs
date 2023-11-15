@@ -166,6 +166,7 @@ impl CPU {
                 0x18 => self.clc(),
                 0xca => self.dex(),
                 0xe8 => self.inx(),
+                0x4c => self.jmp(),
                 0x20 => self.jsr(),
                 0xea => {
                     // NOP - do nothing
@@ -361,6 +362,11 @@ impl CPU {
     fn inx(&mut self) {
         self.register_x = self.register_x.wrapping_add(1);
         self.update_zero_and_negative_flags(self.register_x);
+    }
+
+    fn jmp(&mut self) {
+        let mem_address = self.mem_read_u16(self.program_counter);
+        self.program_counter = mem_address;
     }
 
     fn jsr(&mut self) {
