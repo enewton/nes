@@ -118,7 +118,15 @@ impl CPU {
                 }
 
                 0xc9 | 0xc5 | 0xd5 | 0xcd | 0xdd | 0xd9 | 0xc1 | 0xd1 => {
-                    self.cmp(&opcode.mode);
+                    self.compare(&opcode.mode, self.register_a);
+                }
+
+                0xe0 | 0xe4 | 0xec => {
+                    self.compare(&opcode.mode, self.register_x);
+                }
+
+                0xc0 | 0xc4 | 0xcc => {
+                    self.compare(&opcode.mode, self.register_y);
                 }
 
                 0xa9 | 0xa5 | 0xb5 | 0xad | 0xbd | 0xb9 | 0xa1 | 0xb1 => {
@@ -273,17 +281,17 @@ impl CPU {
         self.branch(!self.status.contains(CpuFlags::ZERO));
     }
 
-    fn cmp(&mut self, mode: &AddressingMode) {
+    fn compare(&mut self, mode: &AddressingMode, register: u8) {
         let addr = self.get_operand_address(mode);
         let data = self.mem_read(addr);
 
-        if data <= self.register_a {
+        if data <= register {
             self.status.insert(CpuFlags::CARRY);
         } else {
             self.status.remove(CpuFlags::CARRY);
         }
 
-        self.update_zero_and_negative_flags(self.register_a.wrapping_sub(data));
+        self.update_zero_and_negative_flags(register.wrapping_sub(data));
     }
 
     fn clc(&mut self) {
@@ -292,7 +300,6 @@ impl CPU {
 
     fn inx(&mut self) {
         self.register_x = self.register_x.wrapping_add(1);
-        println!("INX {:x}", self.register_x);
         self.update_zero_and_negative_flags(self.register_x);
     }
 
