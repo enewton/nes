@@ -129,6 +129,7 @@ impl CPU {
                     self.sta(&opcode.mode);
                 }
 
+                0xf0 => self.beq(),
                 0x18 => self.clc(),
                 0x20 => self.jsr(),
                 0x60 => self.rts(),
@@ -253,6 +254,17 @@ impl CPU {
 
         self.register_a &= value;
         self.update_zero_and_negative_flags(self.register_a);
+    }
+
+    fn beq(&mut self) {
+        if self.status.contains(CpuFlags::ZERO) {
+            let jump: i8 = self.mem_read(self.program_counter) as i8;
+            let jump_addr = self
+                .program_counter
+                .wrapping_add(1)
+                .wrapping_add(jump as u16);
+            self.program_counter = jump_addr;
+        }
     }
 
     fn cmp(&mut self, mode: &AddressingMode) {
