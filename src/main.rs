@@ -7,9 +7,14 @@ use sdl2::keyboard::Keycode;
 use sdl2::pixels::Color;
 use sdl2::pixels::PixelFormatEnum;
 use sdl2::EventPump;
+use std::thread::sleep;
+use std::time::Duration;
 
 #[macro_use]
 extern crate lazy_static;
+
+#[macro_use]
+extern crate bitflags;
 
 fn main() {
     let game_code = vec![
@@ -36,7 +41,7 @@ fn main() {
         0x60, 0xa2, 0x00, 0xea, 0xea, 0xca, 0xd0, 0xfb, 0x60,
     ];
 
-    // init sdl2
+    // Init sdl2
     let sdl_context = sdl2::init().unwrap();
     let video_subsystem = sdl_context.video().unwrap();
     let window = video_subsystem
@@ -54,7 +59,7 @@ fn main() {
         .create_texture_target(PixelFormatEnum::RGB24, 32, 32)
         .unwrap();
 
-    //load the game
+    // Load the game
     let mut cpu = CPU::new();
     cpu.load(game_code);
     cpu.reset();
@@ -72,7 +77,7 @@ fn main() {
             canvas.present();
         }
 
-        ::std::thread::sleep(std::time::Duration::new(0, 70_000));
+        sleep(Duration::new(0, 70_000));
     });
 }
 
