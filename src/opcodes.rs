@@ -23,13 +23,15 @@ impl OpCode {
 
 lazy_static! {
     pub static ref CPU_OPS_CODES: Vec<OpCode> = vec![
-        OpCode::new(0xf0, "BEQ", 2, 2/*+1 if branch succeeds +2 if to a new page*/, AddressingMode::NoneAddressing),
         OpCode::new(0x00, "BRK", 1, 7, AddressingMode::NoneAddressing),
         OpCode::new(0x18, "CLC", 1, 2, AddressingMode::NoneAddressing),
         OpCode::new(0xe8, "INX", 1, 2, AddressingMode::NoneAddressing),
         OpCode::new(0x20, "JSR", 3, 6, AddressingMode::Absolute),
         OpCode::new(0x60, "RTS", 1, 6, AddressingMode::NoneAddressing),
         OpCode::new(0xaa, "TAX", 1, 2, AddressingMode::NoneAddressing),
+
+        OpCode::new(0xf0, "BEQ", 2, 2/*+1 if branch succeeds +2 if to a new page*/, AddressingMode::NoneAddressing),
+        OpCode::new(0xd0, "BNE", 2, 2/*+1 if branch succeeds +2 if to a new page*/, AddressingMode::NoneAddressing),
 
         OpCode::new(0x69, "ADC", 2, 2, AddressingMode::Immediate),
         OpCode::new(0x65, "ADC", 2, 3, AddressingMode::ZeroPage),

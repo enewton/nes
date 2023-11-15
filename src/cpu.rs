@@ -130,6 +130,7 @@ impl CPU {
                 }
 
                 0xf0 => self.beq(),
+                0xd0 => self.bne(),
                 0x18 => self.clc(),
                 0x20 => self.jsr(),
                 0x60 => self.rts(),
@@ -257,14 +258,11 @@ impl CPU {
     }
 
     fn beq(&mut self) {
-        if self.status.contains(CpuFlags::ZERO) {
-            let jump: i8 = self.mem_read(self.program_counter) as i8;
-            let jump_addr = self
-                .program_counter
-                .wrapping_add(1)
-                .wrapping_add(jump as u16);
-            self.program_counter = jump_addr;
-        }
+        self.branch(self.status.contains(CpuFlags::ZERO));
+    }
+
+    fn bne(&mut self) {
+        self.branch(!self.status.contains(CpuFlags::ZERO));
     }
 
     fn cmp(&mut self, mode: &AddressingMode) {
@@ -346,6 +344,18 @@ impl CPU {
 
         self.register_a = result;
         self.update_zero_and_negative_flags(self.register_a);
+    }
+
+    fn branch(&mut self, condition: bool) {
+        if condition {
+            let jump: i8 = self.mem_read(self.program_counter) as i8;
+            let jump_addr = self
+                .program_counter
+                .wrapping_add(1)
+                .wrapping_add(jump as u16);
+
+            self.program_counter = jump_addr;
+        }
     }
 
     fn update_zero_and_negative_flags(&mut self, result: u8) {
