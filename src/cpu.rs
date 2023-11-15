@@ -133,6 +133,10 @@ impl CPU {
                     self.compare(&opcode.mode, self.register_y);
                 }
 
+                0xc6 | 0xd6 | 0xce | 0xde => {
+                    self.dec(&opcode.mode);
+                }
+
                 0xe6 | 0xf6 | 0xee | 0xfe => {
                     self.inc(&opcode.mode);
                 }
@@ -344,6 +348,14 @@ impl CPU {
 
     fn clc(&mut self) {
         self.status.remove(CpuFlags::CARRY);
+    }
+
+    fn dec(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode);
+        let mut data = self.mem_read(addr);
+        data = data.wrapping_sub(1);
+        self.mem_write(addr, data);
+        self.update_zero_and_negative_flags(data);
     }
 
     fn dex(&mut self) {
