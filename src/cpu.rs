@@ -148,10 +148,11 @@ impl CPU {
                 0xf0 => self.beq(),
                 0xd0 => self.bne(),
                 0x18 => self.clc(),
+                0xca => self.dex(),
+                0xe8 => self.inx(),
                 0x20 => self.jsr(),
                 0x60 => self.rts(),
-                0xAA => self.tax(),
-                0xE8 => self.inx(),
+                0xaa => self.tax(),
                 0x00 => return,
                 _ => todo!(),
             }
@@ -296,6 +297,11 @@ impl CPU {
 
     fn clc(&mut self) {
         self.status.remove(CpuFlags::CARRY);
+    }
+
+    fn dex(&mut self) {
+        self.register_x = self.register_x.wrapping_sub(1);
+        self.update_zero_and_negative_flags(self.register_x);
     }
 
     fn inx(&mut self) {
@@ -501,6 +507,16 @@ mod test {
         cpu.load_and_run(vec![0xa9, 0xff, 0xaa, 0xe8, 0xe8, 0x00]);
 
         assert_eq!(cpu.register_x, 1)
+    }
+
+    #[test]
+    fn test_dex() {
+        let mut cpu = CPU::new();
+        cpu.load_and_run(vec![0xca, 0x00]);
+
+        assert_eq!(cpu.register_x, 0xff);
+        assert!(cpu.status.contains(CpuFlags::NEGATIVE));
+        assert!(!cpu.status.contains(CpuFlags::ZERO));
     }
 
     #[test]
