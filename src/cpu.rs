@@ -147,6 +147,10 @@ impl CPU {
 
                 0xf0 => self.beq(),
                 0xd0 => self.bne(),
+                0xb0 => self.bcs(),
+                0x90 => self.bcc(),
+                0x10 => self.bpl(),
+
                 0x18 => self.clc(),
                 0xca => self.dex(),
                 0xe8 => self.inx(),
@@ -281,6 +285,18 @@ impl CPU {
 
     fn bne(&mut self) {
         self.branch(!self.status.contains(CpuFlags::ZERO));
+    }
+
+    fn bcs(&mut self) {
+        self.branch(self.status.contains(CpuFlags::CARRY));
+    }
+
+    fn bcc(&mut self) {
+        self.branch(!self.status.contains(CpuFlags::CARRY));
+    }
+
+    fn bpl(&mut self) {
+        self.branch(!self.status.contains(CpuFlags::NEGATIVE));
     }
 
     fn compare(&mut self, mode: &AddressingMode, register: u8) {
