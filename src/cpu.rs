@@ -109,6 +109,10 @@ impl CPU {
                 .expect(&format!("OpCode 0x{:x} is not recognized", code));
 
             match code {
+                0x69 | 0x65 | 0x75 | 0x6d | 0x7d | 0x79 | 0x61 | 0x71 => {
+                    self.adc(&opcode.mode);
+                }
+
                 0x29 | 0x25 | 0x35 | 0x2d | 0x3d | 0x39 | 0x21 | 0x31 => {
                     self.and(&opcode.mode);
                 }
@@ -233,6 +237,12 @@ impl CPU {
         hi << 8 | lo
     }
 
+    fn adc(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode);
+        let value = self.mem_read(addr);
+        self.add_to_register_a(value);
+    }
+
     fn and(&mut self, mode: &AddressingMode) {
         let addr = self.get_operand_address(mode);
         let value = self.mem_read(addr);
@@ -276,6 +286,37 @@ impl CPU {
     fn tax(&mut self) {
         self.register_x = self.register_a;
         self.update_zero_and_negative_flags(self.register_x);
+    }
+
+    /// Note: Ignoring decimal mode
+    /// http://www.righto.com/2012/12/the-6502-overflow-flag-explained.html
+    fn add_to_register_a(&mut self, data: u8) {
+        let sum = self.register_a as u16
+            + data as u16
+            + (if self.status.contains(CpuFlags::CARRY) {
+                1
+            } else {
+                0
+            }) as u16;
+
+        let carry = sum > 0xff;
+
+        if carry {
+            self.status.insert(CpuFlags::CARRY);
+        } else {
+            self.status.remove(CpuFlags::CARRY);
+        }
+
+        let result = sum as u8;
+
+        if (data ^ result) & (result ^ self.register_a) & 0x80 != 0 {
+            self.status.insert(CpuFlags::OVERFLOW);
+        } else {
+            self.status.remove(CpuFlags::OVERFLOW)
+        }
+
+        self.register_a = result;
+        self.update_zero_and_negative_flags(self.register_a);
     }
 
     fn update_zero_and_negative_flags(&mut self, result: u8) {
@@ -392,5 +433,13 @@ mod test {
         assert_eq!(cpu.register_a, 0x0);
         assert!(cpu.status.bits() & 0b0000_0010 == 0b10);
         assert!(cpu.status.bits() & 0b1000_0000 == 0);
+    }
+
+    #[test]
+    fn test_adc() {
+        let mut cpu = CPU::new();
+        cpu.load_and_run(vec![0xa9, 0xf0, 0x69, 0x77, 0x00]);
+        assert_eq!(cpu.register_a, 0x67);
+        assert!(cpu.status.bits() & 0b0000_0001 == 0b1);
     }
 }
