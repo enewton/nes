@@ -176,6 +176,7 @@ impl CPU {
                     // NOP - do nothing
                 }
                 0x60 => self.rts(),
+                0x38 => self.sec(),
                 0xaa => self.tax(),
                 0x8a => self.txa(),
                 0x00 => return,
@@ -422,6 +423,10 @@ impl CPU {
 
     fn rts(&mut self) {
         self.program_counter = self.stack_pop_u16() + 1;
+    }
+
+    fn sec(&mut self) {
+        self.status.insert(CpuFlags::CARRY);
     }
 
     fn sta(&mut self, mode: &AddressingMode) {

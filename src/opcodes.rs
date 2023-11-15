@@ -30,6 +30,7 @@ lazy_static! {
         OpCode::new(0x20, "JSR", 3, 6, AddressingMode::Absolute),
         OpCode::new(0xea, "NOP", 1, 2, AddressingMode::NoneAddressing),
         OpCode::new(0x60, "RTS", 1, 6, AddressingMode::NoneAddressing),
+        OpCode::new(0x38, "SEC", 1, 2, AddressingMode::NoneAddressing),
         OpCode::new(0xaa, "TAX", 1, 2, AddressingMode::NoneAddressing),
         OpCode::new(0x8a, "TXA", 1, 2, AddressingMode::NoneAddressing),
 
