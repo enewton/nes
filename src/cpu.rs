@@ -125,6 +125,14 @@ impl CPU {
                     self.lda(&opcode.mode);
                 }
 
+                0xa2 | 0xa6 | 0xb6 | 0xae | 0xbe => {
+                    self.ldx(&opcode.mode);
+                }
+
+                0xa0 | 0xa4 | 0xb4 | 0xac | 0xbc => {
+                    self.ldy(&opcode.mode);
+                }
+
                 0x85 | 0x95 | 0x8d | 0x9d | 0x99 | 0x81 | 0x91 => {
                     self.sta(&opcode.mode);
                 }
@@ -293,6 +301,28 @@ impl CPU {
         self.program_counter = self.mem_read_u16(self.program_counter);
     }
 
+    fn lda(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode);
+        let value = self.mem_read(addr);
+
+        self.register_a = value;
+        self.update_zero_and_negative_flags(self.register_a);
+    }
+
+    fn ldx(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode);
+        let value = self.mem_read(addr);
+        self.register_x = value;
+        self.update_zero_and_negative_flags(self.register_x);
+    }
+
+    fn ldy(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode);
+        let value = self.mem_read(addr);
+        self.register_y = value;
+        self.update_zero_and_negative_flags(self.register_y);
+    }
+
     fn rts(&mut self) {
         self.program_counter = self.stack_pop_u16() + 1;
     }
@@ -300,14 +330,6 @@ impl CPU {
     fn sta(&mut self, mode: &AddressingMode) {
         let addr = self.get_operand_address(mode);
         self.mem_write(addr, self.register_a);
-    }
-
-    fn lda(&mut self, mode: &AddressingMode) {
-        let addr = self.get_operand_address(mode);
-        let value = self.mem_read(addr);
-
-        self.register_a = value;
-        self.update_zero_and_negative_flags(self.register_a);
     }
 
     fn tax(&mut self) {
@@ -378,7 +400,7 @@ mod test {
     use super::*;
 
     #[test]
-    fn test_0xa9_lda_immediate_load_data() {
+    fn test_lda_immediate_load_data() {
         let mut cpu = CPU::new();
         cpu.load_and_run(vec![0xa9, 0x05, 0x00]);
         assert_eq!(cpu.register_a, 0x05);
@@ -387,14 +409,14 @@ mod test {
     }
 
     #[test]
-    fn test_0xa9_lda_immediate_load_negative() {
+    fn test_lda_immediate_load_negative() {
         let mut cpu = CPU::new();
         cpu.load_and_run(vec![0xa9, 0x80, 0x00]);
         assert!(cpu.status.bits() & 0b1000_0000 == 0b1000_0000);
     }
 
     #[test]
-    fn test_0xa9_lda_zero_flag() {
+    fn test_lda_zero_flag() {
         let mut cpu = CPU::new();
         cpu.load_and_run(vec![0xa9, 0x00, 0x00]);
         assert!(cpu.status.bits() & 0b0000_0010 == 0b10);
@@ -411,7 +433,25 @@ mod test {
     }
 
     #[test]
-    fn test_0xaa_tax_move_a_to_x_zero() {
+    fn test_ldx_immediate_load_data() {
+        let mut cpu = CPU::new();
+        cpu.load_and_run(vec![0xa2, 0x05, 0x00]);
+        assert_eq!(cpu.register_x, 0x05);
+        assert!(cpu.status.bits() & 0b0000_0010 == 0b00);
+        assert!(cpu.status.bits() & 0b1000_0000 == 0);
+    }
+
+    #[test]
+    fn test_ldy_immediate_load_data() {
+        let mut cpu = CPU::new();
+        cpu.load_and_run(vec![0xa0, 0x05, 0x00]);
+        assert_eq!(cpu.register_y, 0x05);
+        assert!(cpu.status.bits() & 0b0000_0010 == 0b00);
+        assert!(cpu.status.bits() & 0b1000_0000 == 0);
+    }
+
+    #[test]
+    fn test_tax_move_a_to_x_zero() {
         let mut cpu = CPU::new();
         cpu.load_and_run(vec![0xaa, 0x00]);
 
@@ -421,7 +461,7 @@ mod test {
     }
 
     #[test]
-    fn test_0xaa_tax_move_a_to_x_positive() {
+    fn test_tax_move_a_to_x_positive() {
         let mut cpu = CPU::new();
         cpu.load_and_run(vec![0xa9, 10, 0xaa, 0x00]);
 
@@ -431,7 +471,7 @@ mod test {
     }
 
     #[test]
-    fn test_0xaa_tax_move_a_to_x_negative() {
+    fn test_tax_move_a_to_x_negative() {
         let mut cpu = CPU::new();
         cpu.load_and_run(vec![0xa9, 0x80, 0xaa, 0x00]);
 
