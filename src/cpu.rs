@@ -117,6 +117,10 @@ impl CPU {
                     self.and(&opcode.mode);
                 }
 
+                0x24 | 0x2c => {
+                    self.bit(&opcode.mode);
+                }
+
                 0xc9 | 0xc5 | 0xd5 | 0xcd | 0xdd | 0xd9 | 0xc1 | 0xd1 => {
                     self.compare(&opcode.mode, self.register_a);
                 }
@@ -163,6 +167,9 @@ impl CPU {
                 0xca => self.dex(),
                 0xe8 => self.inx(),
                 0x20 => self.jsr(),
+                0xea => {
+                    // NOP - do nothing
+                }
                 0x60 => self.rts(),
                 0xaa => self.tax(),
                 0x8a => self.txa(),
@@ -305,6 +312,20 @@ impl CPU {
 
     fn bpl(&mut self) {
         self.branch(!self.status.contains(CpuFlags::NEGATIVE));
+    }
+
+    fn bit(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode);
+        let data = self.mem_read(addr);
+        let and = self.register_a & data;
+        if and == 0 {
+            self.status.insert(CpuFlags::ZERO);
+        } else {
+            self.status.remove(CpuFlags::ZERO);
+        }
+
+        self.status.set(CpuFlags::NEGATIVE, data & 0b10000000 > 0);
+        self.status.set(CpuFlags::OVERFLOW, data & 0b01000000 > 0);
     }
 
     fn compare(&mut self, mode: &AddressingMode, register: u8) {
