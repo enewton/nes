@@ -141,6 +141,10 @@ impl CPU {
                     self.ldy(&opcode.mode);
                 }
 
+                0x4a /*| 0x46 | 0x56 | 0x4e | 0x5e*/ => {
+                    self.lsr();
+                }
+
                 0x85 | 0x95 | 0x8d | 0x9d | 0x99 | 0x81 | 0x91 => {
                     self.sta(&opcode.mode);
                 }
@@ -353,6 +357,18 @@ impl CPU {
         self.update_zero_and_negative_flags(self.register_y);
     }
 
+    fn lsr(&mut self) {
+        let mut data = self.register_a;
+        if data & 1 == 1 {
+            self.status.insert(CpuFlags::CARRY);
+        } else {
+            self.status.remove(CpuFlags::CARRY);
+        }
+        data = data >> 1;
+        self.register_a = data;
+        self.update_zero_and_negative_flags(self.register_a);
+    }
+
     fn rts(&mut self) {
         self.program_counter = self.stack_pop_u16() + 1;
     }
@@ -433,6 +449,8 @@ impl CPU {
 #[cfg(test)]
 mod test {
     use super::*;
+
+    const OP_LDA: u8 = 0xa9;
 
     #[test]
     fn test_lda_immediate_load_data() {
@@ -595,5 +613,15 @@ mod test {
         assert!(cpu.status.bits() & 0b0000_0001 == 0);
         assert!(cpu.status.bits() & 0b0000_0010 == 0);
         assert!(cpu.status.bits() & 0b1000_0000 == 0b1000_0000);
+    }
+
+    #[test]
+    fn test_lsr() {
+        let mut cpu = CPU::new();
+        cpu.load_and_run(vec![OP_LDA, 0x04, 0x4a, 0x00]);
+        assert_eq!(cpu.register_a, 0x02);
+        assert!(!cpu.status.contains(CpuFlags::CARRY));
+        assert!(!cpu.status.contains(CpuFlags::ZERO));
+        assert!(!cpu.status.contains(CpuFlags::NEGATIVE));
     }
 }
