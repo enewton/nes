@@ -117,6 +117,10 @@ impl CPU {
                     self.and(&opcode.mode);
                 }
 
+                0xc9 | 0xc5 | 0xd5 | 0xcd | 0xdd | 0xd9 | 0xc1 | 0xd1 => {
+                    self.cmp(&opcode.mode);
+                }
+
                 0xa9 | 0xa5 | 0xb5 | 0xad | 0xbd | 0xb9 | 0xa1 | 0xb1 => {
                     self.lda(&opcode.mode);
                 }
@@ -249,6 +253,19 @@ impl CPU {
 
         self.register_a &= value;
         self.update_zero_and_negative_flags(self.register_a);
+    }
+
+    fn cmp(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode);
+        let data = self.mem_read(addr);
+
+        if data <= self.register_a {
+            self.status.insert(CpuFlags::CARRY);
+        } else {
+            self.status.remove(CpuFlags::CARRY);
+        }
+
+        self.update_zero_and_negative_flags(self.register_a.wrapping_sub(data));
     }
 
     fn clc(&mut self) {
@@ -441,5 +458,25 @@ mod test {
         cpu.load_and_run(vec![0xa9, 0xf0, 0x69, 0x77, 0x00]);
         assert_eq!(cpu.register_a, 0x67);
         assert!(cpu.status.bits() & 0b0000_0001 == 0b1);
+    }
+
+    #[test]
+    fn test_cmp_zero() {
+        let mut cpu = CPU::new();
+        cpu.load_and_run(vec![0xa9, 0x55, 0xc9, 0x55, 0x00]);
+        assert_eq!(cpu.register_a, 0x55);
+        assert!(cpu.status.bits() & 0b0000_0001 == 0b1);
+        assert!(cpu.status.bits() & 0b0000_0010 == 0b10);
+        assert!(cpu.status.bits() & 0b1000_0000 == 0);
+    }
+
+    #[test]
+    fn test_cmp_negative() {
+        let mut cpu = CPU::new();
+        cpu.load_and_run(vec![0xa9, 0x7f, 0xc9, 0xf0, 0x00]);
+        assert_eq!(cpu.register_a, 0x7f);
+        assert!(cpu.status.bits() & 0b0000_0001 == 0);
+        assert!(cpu.status.bits() & 0b0000_0010 == 0);
+        assert!(cpu.status.bits() & 0b1000_0000 == 0b1000_0000);
     }
 }
