@@ -153,6 +153,7 @@ impl CPU {
                 0x20 => self.jsr(),
                 0x60 => self.rts(),
                 0xaa => self.tax(),
+                0x8a => self.txa(),
                 0x00 => return,
                 _ => todo!(),
             }
@@ -350,6 +351,11 @@ impl CPU {
         self.update_zero_and_negative_flags(self.register_x);
     }
 
+    fn txa(&mut self) {
+        self.register_a = self.register_x;
+        self.update_zero_and_negative_flags(self.register_a);
+    }
+
     /// Note: Ignoring decimal mode
     /// http://www.righto.com/2012/12/the-6502-overflow-flag-explained.html
     fn add_to_register_a(&mut self, data: u8) {
@@ -491,6 +497,16 @@ mod test {
         assert_eq!(cpu.register_x, 0x80);
         assert!(cpu.status.bits() & 0b0000_0010 == 0b00);
         assert!(cpu.status.bits() & 0b1000_0000 == 0b1000_0000);
+    }
+
+    #[test]
+    fn test_txa_positive() {
+        let mut cpu = CPU::new();
+        cpu.load_and_run(vec![0xa2, 0x55, 0x8a, 0x00]);
+
+        assert_eq!(cpu.register_a, 0x55);
+        assert!(cpu.status.bits() & 0b0000_0010 == 0b00);
+        assert!(cpu.status.bits() & 0b1000_0000 == 0);
     }
 
     #[test]
