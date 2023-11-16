@@ -1,4 +1,5 @@
 use crate::opcodes;
+use crate::Bus;
 use std::collections::HashMap;
 
 bitflags! {
@@ -36,7 +37,7 @@ pub struct CPU {
     pub status: CpuFlags,
     pub program_counter: u16,
     pub stack_pointer: u8,
-    memory: [u8; 0xFFFF],
+    pub bus: Bus,
 }
 
 #[derive(Debug)]
@@ -54,6 +55,35 @@ pub enum AddressingMode {
     NoneAddressing,
 }
 
+pub trait Mem {
+    fn mem_read(&self, addr: u16) -> u8;
+
+    fn mem_write(&mut self, addr: u16, data: u8);
+
+    fn mem_read_u16(&self, pos: u16) -> u16 {
+        let lo = self.mem_read(pos) as u16;
+        let hi = self.mem_read(pos + 1) as u16;
+        (hi << 8) | (lo as u16)
+    }
+
+    fn mem_write_u16(&mut self, pos: u16, data: u16) {
+        let hi = (data >> 8) as u8;
+        let lo = (data & 0xff) as u8;
+        self.mem_write(pos, lo);
+        self.mem_write(pos + 1, hi);
+    }
+}
+
+impl Mem for CPU {
+    fn mem_read(&self, addr: u16) -> u8 {
+        self.bus.mem_read(addr)
+    }
+
+    fn mem_write(&mut self, addr: u16, data: u8) {
+        self.bus.mem_write(addr, data)
+    }
+}
+
 impl CPU {
     pub fn new() -> Self {
         CPU {
@@ -63,7 +93,7 @@ impl CPU {
             status: CpuFlags::from_bits_truncate(0b100100),
             program_counter: 0,
             stack_pointer: STACK_RESET,
-            memory: [0; 0xFFFF],
+            bus: Bus::new(),
         }
     }
 
@@ -77,8 +107,9 @@ impl CPU {
     }
 
     pub fn load(&mut self, program: Vec<u8>) {
-        self.memory[0x0600..(0x0600 + program.len())].copy_from_slice(&program[..]);
-        self.mem_write_u16(0xFFFC, 0x0600);
+        for i in 0..(program.len() as u16) {
+            self.mem_write(0x0600 + i, program[i as usize]);
+        }
     }
 
     pub fn load_and_run(&mut self, program: Vec<u8>) {
@@ -191,25 +222,6 @@ impl CPU {
                 self.program_counter += (opcode.len - 1) as u16;
             }
         }
-    }
-
-    pub fn mem_read(&self, addr: u16) -> u8 {
-        self.memory[addr as usize]
-    }
-
-    pub fn mem_write(&mut self, addr: u16, data: u8) {
-        self.memory[addr as usize] = data;
-    }
-
-    fn mem_read_u16(&self, pos: u16) -> u16 {
-        u16::from_le_bytes([self.mem_read(pos), self.mem_read(pos + 1)])
-    }
-
-    fn mem_write_u16(&mut self, pos: u16, data: u16) {
-        let hi = (data >> 8) as u8;
-        let lo = (data & 0xff) as u8;
-        self.mem_write(pos, lo);
-        self.mem_write(pos + 1, hi);
     }
 
     fn get_operand_address(&self, mode: &AddressingMode) -> u16 {

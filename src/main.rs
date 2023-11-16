@@ -1,6 +1,11 @@
+pub mod bus;
 pub mod cpu;
 pub mod opcodes;
+
+use bus::Bus;
+use cpu::Mem;
 use cpu::CPU;
+
 use rand::Rng;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
