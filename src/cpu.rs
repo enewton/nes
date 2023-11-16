@@ -90,7 +90,7 @@ impl CPU {
             register_a: 0,
             register_x: 0,
             register_y: 0,
-            status: CpuFlags::from_bits_truncate(0b100100),
+            status: CpuFlags::BREAK2 | CpuFlags::INTERRUPT_DISABLE,
             program_counter: 0,
             stack_pointer: STACK_RESET,
             bus: Bus::new(),
@@ -101,8 +101,7 @@ impl CPU {
         self.register_a = 0;
         self.register_x = 0;
         self.register_y = 0;
-        self.status = CpuFlags::from_bits_truncate(0b100100);
-
+        self.status = CpuFlags::BREAK2 | CpuFlags::INTERRUPT_DISABLE;
         self.program_counter = self.mem_read_u16(0xFFFC);
     }
 
@@ -340,12 +339,8 @@ impl CPU {
         let addr = self.get_operand_address(mode);
         let data = self.mem_read(addr);
         let and = self.register_a & data;
-        if and == 0 {
-            self.status.insert(CpuFlags::ZERO);
-        } else {
-            self.status.remove(CpuFlags::ZERO);
-        }
 
+        self.status.set(CpuFlags::ZERO, and == 0);
         self.status.set(CpuFlags::NEGATIVE, data & 0b10000000 > 0);
         self.status.set(CpuFlags::OVERFLOW, data & 0b01000000 > 0);
     }
@@ -354,12 +349,7 @@ impl CPU {
         let addr = self.get_operand_address(mode);
         let data = self.mem_read(addr);
 
-        if data <= register {
-            self.status.insert(CpuFlags::CARRY);
-        } else {
-            self.status.remove(CpuFlags::CARRY);
-        }
-
+        self.status.set(CpuFlags::CARRY, data <= register);
         self.update_zero_and_negative_flags(register.wrapping_sub(data));
     }
 
@@ -427,11 +417,8 @@ impl CPU {
 
     fn lsr(&mut self) {
         let mut data = self.register_a;
-        if data & 1 == 1 {
-            self.status.insert(CpuFlags::CARRY);
-        } else {
-            self.status.remove(CpuFlags::CARRY);
-        }
+        self.status.set(CpuFlags::CARRY, data & 1 == 1);
+
         data = data >> 1;
         self.register_a = data;
         self.update_zero_and_negative_flags(self.register_a);
@@ -477,23 +464,13 @@ impl CPU {
                 0
             }) as u16;
 
-        let carry = sum > 0xff;
-
-        if carry {
-            self.status.insert(CpuFlags::CARRY);
-        } else {
-            self.status.remove(CpuFlags::CARRY);
-        }
+        self.status.set(CpuFlags::CARRY, sum > 0xff);
 
         let result = sum as u8;
-
-        if (data ^ result) & (result ^ self.register_a) & 0x80 != 0 {
-            self.status.insert(CpuFlags::OVERFLOW);
-        } else {
-            self.status.remove(CpuFlags::OVERFLOW)
-        }
-
         self.register_a = result;
+
+        let overflow = (data ^ result) & (result ^ self.register_a) & 0x80 != 0;
+        self.status.set(CpuFlags::OVERFLOW, overflow);
         self.update_zero_and_negative_flags(self.register_a);
     }
 
@@ -510,17 +487,9 @@ impl CPU {
     }
 
     fn update_zero_and_negative_flags(&mut self, result: u8) {
-        if result == 0 {
-            self.status.insert(CpuFlags::ZERO);
-        } else {
-            self.status.remove(CpuFlags::ZERO);
-        }
-
-        if result & 0b1000_0000 != 0 {
-            self.status.insert(CpuFlags::NEGATIVE);
-        } else {
-            self.status.remove(CpuFlags::NEGATIVE);
-        }
+        self.status.set(CpuFlags::ZERO, result == 0);
+        self.status
+            .set(CpuFlags::NEGATIVE, result & 0b1000_0000 != 0);
     }
 }
 
@@ -533,24 +502,24 @@ mod test {
     #[test]
     fn test_lda_immediate_load_data() {
         let mut cpu = CPU::new();
-        cpu.load_and_run(vec![0xa9, 0x05, 0x00]);
+        cpu.load_and_run(vec![OP_LDA, 0x05, 0x00]);
         assert_eq!(cpu.register_a, 0x05);
-        assert!(cpu.status.bits() & 0b0000_0010 == 0b00);
-        assert!(cpu.status.bits() & 0b1000_0000 == 0);
+        assert!(!cpu.status.contains(CpuFlags::ZERO));
+        assert!(!cpu.status.contains(CpuFlags::NEGATIVE));
     }
 
     #[test]
     fn test_lda_immediate_load_negative() {
         let mut cpu = CPU::new();
-        cpu.load_and_run(vec![0xa9, 0x80, 0x00]);
-        assert!(cpu.status.bits() & 0b1000_0000 == 0b1000_0000);
+        cpu.load_and_run(vec![OP_LDA, 0x80, 0x00]);
+        assert!(cpu.status.contains(CpuFlags::NEGATIVE));
     }
 
     #[test]
     fn test_lda_zero_flag() {
         let mut cpu = CPU::new();
-        cpu.load_and_run(vec![0xa9, 0x00, 0x00]);
-        assert!(cpu.status.bits() & 0b0000_0010 == 0b10);
+        cpu.load_and_run(vec![OP_LDA, 0x00, 0x00]);
+        assert!(cpu.status.contains(CpuFlags::ZERO));
     }
 
     #[test]
@@ -568,8 +537,8 @@ mod test {
         let mut cpu = CPU::new();
         cpu.load_and_run(vec![0xa2, 0x05, 0x00]);
         assert_eq!(cpu.register_x, 0x05);
-        assert!(cpu.status.bits() & 0b0000_0010 == 0b00);
-        assert!(cpu.status.bits() & 0b1000_0000 == 0);
+        assert!(!cpu.status.contains(CpuFlags::ZERO));
+        assert!(!cpu.status.contains(CpuFlags::NEGATIVE));
     }
 
     #[test]
@@ -577,8 +546,8 @@ mod test {
         let mut cpu = CPU::new();
         cpu.load_and_run(vec![0xa0, 0x05, 0x00]);
         assert_eq!(cpu.register_y, 0x05);
-        assert!(cpu.status.bits() & 0b0000_0010 == 0b00);
-        assert!(cpu.status.bits() & 0b1000_0000 == 0);
+        assert!(!cpu.status.contains(CpuFlags::ZERO));
+        assert!(!cpu.status.contains(CpuFlags::NEGATIVE));
     }
 
     #[test]
@@ -587,28 +556,28 @@ mod test {
         cpu.load_and_run(vec![0xaa, 0x00]);
 
         assert_eq!(cpu.register_x, 0);
-        assert!(cpu.status.bits() & 0b0000_0010 == 0b10);
-        assert!(cpu.status.bits() & 0b1000_0000 == 0);
+        assert!(cpu.status.contains(CpuFlags::ZERO));
+        assert!(!cpu.status.contains(CpuFlags::NEGATIVE));
     }
 
     #[test]
     fn test_tax_move_a_to_x_positive() {
         let mut cpu = CPU::new();
-        cpu.load_and_run(vec![0xa9, 10, 0xaa, 0x00]);
+        cpu.load_and_run(vec![OP_LDA, 10, 0xaa, 0x00]);
 
         assert_eq!(cpu.register_x, 10);
-        assert!(cpu.status.bits() & 0b0000_0010 == 0b00);
-        assert!(cpu.status.bits() & 0b1000_0000 == 0);
+        assert!(!cpu.status.contains(CpuFlags::ZERO));
+        assert!(!cpu.status.contains(CpuFlags::NEGATIVE));
     }
 
     #[test]
     fn test_tax_move_a_to_x_negative() {
         let mut cpu = CPU::new();
-        cpu.load_and_run(vec![0xa9, 0x80, 0xaa, 0x00]);
+        cpu.load_and_run(vec![OP_LDA, 0x80, 0xaa, 0x00]);
 
         assert_eq!(cpu.register_x, 0x80);
-        assert!(cpu.status.bits() & 0b0000_0010 == 0b00);
-        assert!(cpu.status.bits() & 0b1000_0000 == 0b1000_0000);
+        assert!(!cpu.status.contains(CpuFlags::ZERO));
+        assert!(cpu.status.contains(CpuFlags::NEGATIVE));
     }
 
     #[test]
@@ -617,14 +586,14 @@ mod test {
         cpu.load_and_run(vec![0xa2, 0x55, 0x8a, 0x00]);
 
         assert_eq!(cpu.register_a, 0x55);
-        assert!(cpu.status.bits() & 0b0000_0010 == 0b00);
-        assert!(cpu.status.bits() & 0b1000_0000 == 0);
+        assert!(!cpu.status.contains(CpuFlags::ZERO));
+        assert!(!cpu.status.contains(CpuFlags::NEGATIVE));
     }
 
     #[test]
     fn test_5_ops_working_together() {
         let mut cpu = CPU::new();
-        cpu.load_and_run(vec![0xa9, 0xc0, 0xaa, 0xe8, 0x00]);
+        cpu.load_and_run(vec![OP_LDA, 0xc0, 0xaa, 0xe8, 0x00]);
 
         assert_eq!(cpu.register_x, 0xc1)
     }
@@ -632,7 +601,7 @@ mod test {
     #[test]
     fn test_inx_overflow() {
         let mut cpu = CPU::new();
-        cpu.load_and_run(vec![0xa9, 0xff, 0xaa, 0xe8, 0xe8, 0x00]);
+        cpu.load_and_run(vec![OP_LDA, 0xff, 0xaa, 0xe8, 0xe8, 0x00]);
 
         assert_eq!(cpu.register_x, 1)
     }
@@ -650,47 +619,47 @@ mod test {
     #[test]
     fn test_and_positive() {
         let mut cpu = CPU::new();
-        cpu.load_and_run(vec![0xa9, 0xf0, 0x29, 0x77, 0x00]);
+        cpu.load_and_run(vec![OP_LDA, 0xf0, 0x29, 0x77, 0x00]);
         assert_eq!(cpu.register_a, 0x70);
-        assert!(cpu.status.bits() & 0b0000_0010 == 0b00);
-        assert!(cpu.status.bits() & 0b1000_0000 == 0);
+        assert!(!cpu.status.contains(CpuFlags::ZERO));
+        assert!(!cpu.status.contains(CpuFlags::NEGATIVE));
     }
 
     #[test]
     fn test_and_zero() {
         let mut cpu = CPU::new();
-        cpu.load_and_run(vec![0xa9, 0xf0, 0x29, 0x0f, 0x00]);
+        cpu.load_and_run(vec![OP_LDA, 0xf0, 0x29, 0x0f, 0x00]);
         assert_eq!(cpu.register_a, 0x0);
-        assert!(cpu.status.bits() & 0b0000_0010 == 0b10);
-        assert!(cpu.status.bits() & 0b1000_0000 == 0);
+        assert!(cpu.status.contains(CpuFlags::ZERO));
+        assert!(!cpu.status.contains(CpuFlags::NEGATIVE));
     }
 
     #[test]
     fn test_adc() {
         let mut cpu = CPU::new();
-        cpu.load_and_run(vec![0xa9, 0xf0, 0x69, 0x77, 0x00]);
+        cpu.load_and_run(vec![OP_LDA, 0xf0, 0x69, 0x77, 0x00]);
         assert_eq!(cpu.register_a, 0x67);
-        assert!(cpu.status.bits() & 0b0000_0001 == 0b1);
+        assert!(cpu.status.contains(CpuFlags::CARRY));
     }
 
     #[test]
     fn test_cmp_zero() {
         let mut cpu = CPU::new();
-        cpu.load_and_run(vec![0xa9, 0x55, 0xc9, 0x55, 0x00]);
+        cpu.load_and_run(vec![OP_LDA, 0x55, 0xc9, 0x55, 0x00]);
         assert_eq!(cpu.register_a, 0x55);
-        assert!(cpu.status.bits() & 0b0000_0001 == 0b1);
-        assert!(cpu.status.bits() & 0b0000_0010 == 0b10);
-        assert!(cpu.status.bits() & 0b1000_0000 == 0);
+        assert!(cpu.status.contains(CpuFlags::CARRY));
+        assert!(cpu.status.contains(CpuFlags::ZERO));
+        assert!(!cpu.status.contains(CpuFlags::NEGATIVE));
     }
 
     #[test]
     fn test_cmp_negative() {
         let mut cpu = CPU::new();
-        cpu.load_and_run(vec![0xa9, 0x7f, 0xc9, 0xf0, 0x00]);
+        cpu.load_and_run(vec![OP_LDA, 0x7f, 0xc9, 0xf0, 0x00]);
         assert_eq!(cpu.register_a, 0x7f);
-        assert!(cpu.status.bits() & 0b0000_0001 == 0);
-        assert!(cpu.status.bits() & 0b0000_0010 == 0);
-        assert!(cpu.status.bits() & 0b1000_0000 == 0b1000_0000);
+        assert!(!cpu.status.contains(CpuFlags::CARRY));
+        assert!(!cpu.status.contains(CpuFlags::ZERO));
+        assert!(cpu.status.contains(CpuFlags::NEGATIVE));
     }
 
     #[test]
