@@ -26,6 +26,7 @@ lazy_static! {
         OpCode::new(0x00, "BRK", 1, 7, AddressingMode::NoneAddressing),
         OpCode::new(0x18, "CLC", 1, 2, AddressingMode::NoneAddressing),
         OpCode::new(0xca, "DEX", 1, 2, AddressingMode::NoneAddressing),
+        OpCode::new(0x88, "DEY", 1, 2, AddressingMode::NoneAddressing),
         OpCode::new(0xe8, "INX", 1, 2, AddressingMode::NoneAddressing),
         OpCode::new(0x20, "JSR", 3, 6, AddressingMode::Absolute),
         OpCode::new(0xea, "NOP", 1, 2, AddressingMode::NoneAddressing),
@@ -121,6 +122,8 @@ lazy_static! {
         //OpCode::new(0x4e, "LSR", 3, 6, AddressingMode::Absolute),
         //OpCode::new(0x5e, "LSR", 3, 7, AddressingMode::Absolute_X),
 
+        OpCode::new(0x11, "ORA", 2, 5/*+1 if page crossed*/, AddressingMode::Indirect_Y),
+        
         OpCode::new(0xe9, "SBC", 2, 2, AddressingMode::Immediate),
         OpCode::new(0xe5, "SBC", 2, 3, AddressingMode::ZeroPage),
         OpCode::new(0xf5, "SBC", 2, 4, AddressingMode::ZeroPage_X),
