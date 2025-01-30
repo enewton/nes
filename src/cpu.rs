@@ -15,6 +15,7 @@ bitflags! {
     ///  | +--------------- Overflow Flag
     ///  +----------------- Negative Flag
     ///
+    #[derive(Clone)]
     pub struct CpuFlags: u8 {
         const CARRY             = 0b00000001;
         const ZERO              = 0b00000010;
@@ -228,6 +229,7 @@ impl CPU {
                 0xea => {
                     // NOP - do nothing
                 }
+                0x08 => self.php(),
                 0x60 => self.rts(),
                 0x38 => self.sec(),
                 0xaa => self.tax(),
@@ -463,7 +465,13 @@ impl CPU {
 
         self.register_a |= value;
         self.update_zero_and_negative_flags(self.register_a);
-     }
+    }
+
+    fn php(&mut self) {
+        // http://wiki.nesdev.com/w/index.php/CPU_status_flag_behavior
+        let flags = self.status.clone() | CpuFlags::BREAK | CpuFlags::BREAK2;
+        self.stack_push(flags.bits());
+    }
 
     fn rts(&mut self) {
         self.program_counter = self.stack_pop_u16() + 1;
