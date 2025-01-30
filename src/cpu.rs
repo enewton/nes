@@ -103,8 +103,8 @@ impl CPU {
         self.register_x = 0;
         self.register_y = 0;
         self.status = CpuFlags::BREAK2 | CpuFlags::INTERRUPT_DISABLE;
-        self.program_counter = self.mem_read_u16(0xFFFC);
-        println!("reset PC:{}", self.program_counter);
+        self.program_counter = 0xc000; // TODO Fixme self.mem_read_u16(0xFFFC);
+        println!("reset PC:{:02x}", self.program_counter);
     }
 
     pub fn load(&mut self, program: Vec<u8>) {
@@ -202,11 +202,22 @@ impl CPU {
                     self.sta(&opcode.mode);
                 }
 
+                0x86 | 0x8e | 0x96 => {
+                    self.stx(&opcode.mode);
+                }
+
+                0x84 | 0x8c | 0x94 => {
+                    self.sty(&opcode.mode);
+                }
+
                 0xf0 => self.beq(),
                 0xd0 => self.bne(),
                 0xb0 => self.bcs(),
                 0x90 => self.bcc(),
                 0x10 => self.bpl(),
+
+                0x70 => self.branch(self.status.contains(CpuFlags::OVERFLOW)), // BVS
+                0x50 => self.branch(!self.status.contains(CpuFlags::OVERFLOW)), // BVC
 
                 0x18 => self.clc(),
                 0xca => self.dex(),
@@ -222,7 +233,8 @@ impl CPU {
                 0xaa => self.tax(),
                 0x8a => self.txa(),
 
-                //0x78 => self.status.insert(CpuFlags::INTERRUPT_DISABLE), // SEI
+                0x78 => self.status.insert(CpuFlags::INTERRUPT_DISABLE), // SEI
+                0xf8 => self.status.insert(CpuFlags::DECIMAL_MODE), // SED
 
                 0x00 => return,
                 _ => todo!(),
@@ -470,6 +482,16 @@ impl CPU {
     fn sta(&mut self, mode: &AddressingMode) {
         let addr = self.get_operand_address(mode);
         self.mem_write(addr, self.register_a);
+    }
+
+    fn stx(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode);
+        self.mem_write(addr, self.register_x);
+    }
+
+    fn sty(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode);
+        self.mem_write(addr, self.register_y);
     }
 
     fn tax(&mut self) {

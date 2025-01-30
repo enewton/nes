@@ -8,7 +8,10 @@ pub fn trace(cpu: &CPU) -> String {
     let ref opscodes: HashMap<u8, &'static opcodes::OpCode> = *opcodes::OPCODES_MAP;
 
     let code = cpu.mem_read(cpu.program_counter);
-    println!("code = {:02x} ******* ", code);
+    if !opscodes.contains_key(&code) {
+        println!("unimplemented code = {:02x}", code);
+    }
+
     let ops = opscodes.get(&code).unwrap();
 
     let begin = cpu.program_counter;

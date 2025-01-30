@@ -2,11 +2,13 @@ pub mod bus;
 pub mod cartridge;
 pub mod cpu;
 pub mod opcodes;
+pub mod trace;
 
 use bus::Bus;
 use cartridge::Rom;
 use cpu::Mem;
 use cpu::CPU;
+use trace::trace;
 
 use rand::Rng;
 use sdl2::event::Event;
@@ -43,7 +45,7 @@ fn main() {
         .unwrap();
 
     // Load the game
-    let bytes: Vec<u8> = std::fs::read("roms/snake.nes").unwrap();
+    let bytes: Vec<u8> = std::fs::read("roms/nestest.nes").unwrap();
     let rom = Rom::new(&bytes).unwrap();
     let bus = Bus::new(rom);
     let mut cpu = CPU::new(bus);
@@ -52,6 +54,10 @@ fn main() {
     let mut screen_state = [0 as u8; 32 * 3 * 32];
     let mut rng = rand::thread_rng();
 
+    cpu.run_with_callback(move |cpu| {
+        println!("{}", trace(cpu));
+    })
+    /*
     cpu.run_with_callback(move |cpu| {
         handle_user_input(cpu, &mut event_pump);
         cpu.mem_write(0xfe, rng.gen_range(1..16));
@@ -64,6 +70,7 @@ fn main() {
 
         sleep(Duration::new(0, 70_000));
     });
+    */
 }
 
 fn handle_user_input(cpu: &mut CPU, event_pump: &mut EventPump) {
