@@ -198,6 +198,10 @@ impl CPU {
                     self.ora(&opcode.mode);
                 }
 
+                0x49 | 0x45 | 0x55 | 0x4d | 0x5d | 0x59 | 0x41 | 0x51 => {
+                    self.eor(&opcode.mode);
+                }
+
                 0xe9 | 0xe5 | 0xf5 | 0xed | 0xfd | 0xf9 | 0xe1 | 0xf1 => {
                     self.sbc(&opcode.mode);
                 }
@@ -227,6 +231,7 @@ impl CPU {
                 0xca => self.dex(),
                 0x88 => self.dey(),
                 0xe8 => self.inx(),
+                0xc8 => self.iny(),
                 0x4c => self.jmp(),
                 0x20 => self.jsr(),
                 0xea => {
@@ -238,13 +243,19 @@ impl CPU {
                 0x28 => self.plp(),
                 
                 0x60 => self.rts(),
+                0x40 => self.rti(),
                 0x38 => self.sec(),
                 0xaa => self.tax(),
                 0x8a => self.txa(),
+                0xa8 => self.tay(),
+                0x98 => self.tya(),
+                0xba => self.tsx(),
+                0x9a => self.txs(),
 
                 0x78 => self.status.insert(CpuFlags::INTERRUPT_DISABLE), // SEI
                 0xf8 => self.status.insert(CpuFlags::DECIMAL_MODE), // SED
                 0xd8 => self.status.remove(CpuFlags::DECIMAL_MODE), // CLD
+                0xb8 => self.status.remove(CpuFlags::OVERFLOW), // CLV
 
                 0x00 => return,
                 _ => todo!(),
@@ -422,6 +433,11 @@ impl CPU {
         self.update_zero_and_negative_flags(self.register_x);
     }
 
+    fn iny(&mut self) {
+        self.register_y = self.register_y.wrapping_add(1);
+        self.update_zero_and_negative_flags(self.register_y);
+    }
+
     fn jmp(&mut self) {
         let mem_address = self.mem_read_u16(self.program_counter);
         self.program_counter = mem_address;
@@ -471,6 +487,14 @@ impl CPU {
         self.update_zero_and_negative_flags(self.register_a);
     }
 
+    fn eor(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode);
+        let value = self.mem_read(addr);
+
+        self.register_a ^= value;
+        self.update_zero_and_negative_flags(self.register_a);
+    }
+
     fn php(&mut self) {
         // http://wiki.nesdev.com/w/index.php/CPU_status_flag_behavior
         let flags = self.status.clone() | CpuFlags::BREAK | CpuFlags::BREAK2;
@@ -502,6 +526,22 @@ impl CPU {
 
     fn rts(&mut self) {
         self.program_counter = self.stack_pop_u16() + 1;
+    }
+
+    fn rti(&mut self) {
+        let data = self.stack_pop();
+
+        // TODO There must be a better way?
+        self.status.set(CpuFlags::CARRY,             data & 0b00000001 > 0);
+        self.status.set(CpuFlags::ZERO,              data & 0b00000010 > 0);
+        self.status.set(CpuFlags::INTERRUPT_DISABLE, data & 0b00000100 > 0);
+        self.status.set(CpuFlags::DECIMAL_MODE,      data & 0b00001000 > 0);
+        self.status.remove(CpuFlags::BREAK);
+        self.status.insert(CpuFlags::BREAK2);
+        self.status.set(CpuFlags::OVERFLOW,          data & 0b01000000 > 0);
+        self.status.set(CpuFlags::NEGATIVE,          data & 0b10000000 > 0);
+
+        self.program_counter = self.stack_pop_u16();
     }
 
     fn sbc(&mut self, mode: &AddressingMode) {
@@ -537,6 +577,25 @@ impl CPU {
     fn txa(&mut self) {
         self.register_a = self.register_x;
         self.update_zero_and_negative_flags(self.register_a);
+    }
+
+    fn tay(&mut self) {
+        self.register_y = self.register_a;
+        self.update_zero_and_negative_flags(self.register_y);
+    }
+
+    fn tya(&mut self) {
+        self.register_a = self.register_y;
+        self.update_zero_and_negative_flags(self.register_a);
+    }
+
+    fn tsx(&mut self) {
+        self.register_x = self.stack_pointer;
+        self.update_zero_and_negative_flags(self.register_x);
+    }
+
+    fn txs(&mut self) {
+        self.stack_pointer = self.register_x;
     }
 
     /// Note: Ignoring decimal mode
