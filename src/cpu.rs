@@ -194,7 +194,7 @@ impl CPU {
                     self.lsr();
                 }
 
-                0x11 /*| 0x09 | 0x05 | 0x15 | 0x0d | 0x1d | 0x19 | 0x01*/ => {
+                0x11 | 0x09 | 0x05 | 0x15 | 0x0d | 0x1d | 0x19 | 0x01 => {
                     self.ora(&opcode.mode);
                 }
 
@@ -218,8 +218,8 @@ impl CPU {
                 0xd0 => self.bne(),
                 0xb0 => self.bcs(),
                 0x90 => self.bcc(),
-                0x10 => self.bpl(),
-
+                0x30 => self.branch(self.status.contains(CpuFlags::NEGATIVE)), // BMI
+                0x10 => self.branch(!self.status.contains(CpuFlags::NEGATIVE)), // BPL
                 0x70 => self.branch(self.status.contains(CpuFlags::OVERFLOW)), // BVS
                 0x50 => self.branch(!self.status.contains(CpuFlags::OVERFLOW)), // BVC
 
@@ -367,10 +367,6 @@ impl CPU {
 
     fn bcc(&mut self) {
         self.branch(!self.status.contains(CpuFlags::CARRY));
-    }
-
-    fn bpl(&mut self) {
-        self.branch(!self.status.contains(CpuFlags::NEGATIVE));
     }
 
     fn bit(&mut self, mode: &AddressingMode) {
