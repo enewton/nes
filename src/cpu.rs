@@ -1,3 +1,5 @@
+use bitflags::Flags;
+
 use crate::opcodes;
 use crate::Bus;
 use std::collections::HashMap;
@@ -16,6 +18,7 @@ bitflags! {
     ///  +----------------- Negative Flag
     ///
     #[derive(Clone)]
+//    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub struct CpuFlags: u8 {
         const CARRY             = 0b00000001;
         const ZERO              = 0b00000010;
@@ -229,7 +232,11 @@ impl CPU {
                 0xea => {
                     // NOP - do nothing
                 }
+                0x48 => self.pha(),
+                0x68 => self.pla(),
                 0x08 => self.php(),
+                0x28 => self.plp(),
+                
                 0x60 => self.rts(),
                 0x38 => self.sec(),
                 0xaa => self.tax(),
@@ -237,6 +244,7 @@ impl CPU {
 
                 0x78 => self.status.insert(CpuFlags::INTERRUPT_DISABLE), // SEI
                 0xf8 => self.status.insert(CpuFlags::DECIMAL_MODE), // SED
+                0xd8 => self.status.remove(CpuFlags::DECIMAL_MODE), // CLD
 
                 0x00 => return,
                 _ => todo!(),
@@ -471,6 +479,29 @@ impl CPU {
         // http://wiki.nesdev.com/w/index.php/CPU_status_flag_behavior
         let flags = self.status.clone() | CpuFlags::BREAK | CpuFlags::BREAK2;
         self.stack_push(flags.bits());
+    }
+
+    fn plp(&mut self) {
+        let data = self.stack_pop();
+
+        // TODO There must be a better way?
+        self.status.set(CpuFlags::CARRY,             data & 0b00000001 > 0);
+        self.status.set(CpuFlags::ZERO,              data & 0b00000010 > 0);
+        self.status.set(CpuFlags::INTERRUPT_DISABLE, data & 0b00000100 > 0);
+        self.status.set(CpuFlags::DECIMAL_MODE,      data & 0b00001000 > 0);
+        self.status.remove(CpuFlags::BREAK);
+        self.status.insert(CpuFlags::BREAK2);
+        self.status.set(CpuFlags::OVERFLOW,          data & 0b01000000 > 0);
+        self.status.set(CpuFlags::NEGATIVE,          data & 0b10000000 > 0);
+    }
+
+    fn pha(&mut self) {
+        self.stack_push(self.register_a);
+    }
+
+    fn pla(&mut self) {
+        self.register_a =  self.stack_pop();
+        self.update_zero_and_negative_flags(self.register_a);
     }
 
     fn rts(&mut self) {
