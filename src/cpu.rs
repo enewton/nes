@@ -190,16 +190,36 @@ impl CPU {
                     self.ldy(&opcode.mode);
                 }
 
-                0x4a /*| 0x46 | 0x56 | 0x4e | 0x5e*/ => {
-                    self.lsr();
-                }
-
                 0x11 | 0x09 | 0x05 | 0x15 | 0x0d | 0x1d | 0x19 | 0x01 => {
                     self.ora(&opcode.mode);
                 }
 
                 0x49 | 0x45 | 0x55 | 0x4d | 0x5d | 0x59 | 0x41 | 0x51 => {
                     self.eor(&opcode.mode);
+                }
+
+                0x0a => self.asl_accumulator(),
+
+                0x06 | 0x16 | 0x0e | 0x1e => {
+                    self.asl(&opcode.mode);
+                }
+
+                0x4a => self.lsr_accumulator(),
+
+                0x46 | 0x56 | 0x4e | 0x5e => {
+                    self.lsr(&opcode.mode);
+                }
+
+                0x2a => self.rol_accumulator(),
+
+                0x26 | 0x36 | 0x2e | 0x3e => {
+                    self.rol(&opcode.mode);
+                }
+
+                0x6a => self.ror_accumulator(),
+
+                0x66 | 0x76 | 0x6e | 0x7e => {
+                    self.ror(&opcode.mode);
                 }
 
                 0xe9 | 0xe5 | 0xf5 | 0xed | 0xfd | 0xf9 | 0xe1 | 0xf1 => {
@@ -233,6 +253,7 @@ impl CPU {
                 0xe8 => self.inx(),
                 0xc8 => self.iny(),
                 0x4c => self.jmp(),
+                0x6c => self.jmp_indirect(),
                 0x20 => self.jsr(),
                 0xea => {
                     // NOP - do nothing
@@ -350,6 +371,94 @@ impl CPU {
         hi << 8 | lo
     }
 
+    fn asl_accumulator(&mut self) {
+        let mut data = self.register_a;
+        self.status.set(CpuFlags::CARRY, data >> 7 == 1);
+        data = data << 1;
+        self.register_a = data;
+        self.update_zero_and_negative_flags(self.register_a);
+    }
+
+    fn asl(&mut self, mode: &AddressingMode) -> u8 {
+        let addr = self.get_operand_address(mode);
+        let mut data = self.mem_read(addr);
+        self.status.set(CpuFlags::CARRY, data >> 7 == 1);
+        data = data << 1;
+        self.mem_write(addr, data);
+        self.update_zero_and_negative_flags(data);
+        data
+    }
+
+    fn lsr_accumulator(&mut self) {
+        let mut data = self.register_a;
+        self.status.set(CpuFlags::CARRY, data & 1 == 1);
+        data = data >> 1;
+        self.register_a = data;
+        self.update_zero_and_negative_flags(self.register_a);
+    }
+
+    fn lsr(&mut self, mode: &AddressingMode) -> u8 {
+        let addr = self.get_operand_address(mode);
+        let mut data = self.mem_read(addr);
+        self.status.set(CpuFlags::CARRY, data & 1 == 1);
+        data = data >> 1;
+        self.mem_write(addr, data);
+        self.update_zero_and_negative_flags(data);
+        data
+    }
+
+    fn rol(&mut self, mode: &AddressingMode) -> u8 {
+        let addr = self.get_operand_address(mode);
+        let mut data = self.mem_read(addr);
+        let old_carry = self.status.contains(CpuFlags::CARRY);
+        self.status.set(CpuFlags::CARRY, data >> 7 == 1);
+        data = data << 1;
+        if old_carry {
+            data = data | 1;
+        }
+        self.mem_write(addr, data);
+        self.status.set(CpuFlags::NEGATIVE, data >> 7 == 1);
+        data
+    }
+
+    fn rol_accumulator(&mut self) {
+        let mut data = self.register_a;
+        let old_carry = self.status.contains(CpuFlags::CARRY);
+        self.status.set(CpuFlags::CARRY, data >> 7 == 1);
+        data = data << 1;
+        if old_carry {
+            data = data | 1;
+        }
+        self.register_a = data;
+        self.update_zero_and_negative_flags(self.register_a);
+    }
+
+    fn ror(&mut self, mode: &AddressingMode) -> u8 {
+        let addr = self.get_operand_address(mode);
+        let mut data = self.mem_read(addr);
+        let old_carry = self.status.contains(CpuFlags::CARRY);
+        self.status.set(CpuFlags::CARRY, data & 1 == 1);
+        data = data >> 1;
+        if old_carry {
+            data = data | 0b10000000;
+        }
+        self.mem_write(addr, data);
+        self.status.set(CpuFlags::NEGATIVE, data >> 7 == 1);
+        data
+    }
+
+    fn ror_accumulator(&mut self) {
+        let mut data = self.register_a;
+        let old_carry = self.status.contains(CpuFlags::CARRY);
+        self.status.set(CpuFlags::CARRY, data & 1 == 1);
+        data = data >> 1;
+        if old_carry {
+            data = data | 0b10000000;
+        }
+        self.register_a = data;
+        self.update_zero_and_negative_flags(self.register_a);
+    }
+
     fn adc(&mut self, mode: &AddressingMode) {
         let addr = self.get_operand_address(mode);
         let value = self.mem_read(addr);
@@ -442,6 +551,25 @@ impl CPU {
         let mem_address = self.mem_read_u16(self.program_counter);
         self.program_counter = mem_address;
     }
+    
+    fn jmp_indirect(&mut self) {
+        let mem_address = self.mem_read_u16(self.program_counter);
+        // let indirect_ref = self.mem_read_u16(mem_address);
+        //6502 bug mode with with page boundary:
+        //  if address $3000 contains $40, $30FF contains $80, and $3100 contains $50,
+        // the result of JMP ($30FF) will be a transfer of control to $4080 rather than $5080 as you intended
+        // i.e. the 6502 took the low byte of the address from $30FF and the high byte from $3000
+
+        let indirect_ref = if mem_address & 0x00FF == 0x00FF {
+            let lo = self.mem_read(mem_address);
+            let hi = self.mem_read(mem_address & 0xFF00);
+            (hi as u16) << 8 | (lo as u16)
+        } else {
+            self.mem_read_u16(mem_address)
+        };
+
+        self.program_counter = indirect_ref;
+    }
 
     fn jsr(&mut self) {
         self.stack_push_u16(self.program_counter + 2 - 1);
@@ -468,15 +596,6 @@ impl CPU {
         let value = self.mem_read(addr);
         self.register_y = value;
         self.update_zero_and_negative_flags(self.register_y);
-    }
-
-    fn lsr(&mut self) {
-        let mut data = self.register_a;
-        self.status.set(CpuFlags::CARRY, data & 1 == 1);
-
-        data = data >> 1;
-        self.register_a = data;
-        self.update_zero_and_negative_flags(self.register_a);
     }
 
     fn ora(&mut self, mode: &AddressingMode) {
@@ -615,6 +734,7 @@ impl CPU {
         self.register_a = result;
 
         let overflow = (data ^ result) & (result ^ self.register_a) & 0x80 != 0;
+        // println!("a={} data={} sum={} result={} overflow={}", self.register_a, data, sum, result, overflow);
         self.status.set(CpuFlags::OVERFLOW, overflow);
         self.update_zero_and_negative_flags(self.register_a);
     }
